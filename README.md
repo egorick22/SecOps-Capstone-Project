@@ -22,6 +22,53 @@
 * **Branch SPB (VLAN 40 | 10.0.40.0/24)**
   Сеть филиала. Маршрутизация и фильтрация трафика настроены локально.
 
+  ### Логическая топология сети
+
+```mermaid
+flowchart TD
+    %% Внешняя сеть
+    Internet((Internet))
+    
+    %% Ядро сети
+    FW{Core Firewall / Router\nnftables}
+
+    %% Центральный офис
+    subgraph HQ [HQ Infrastructure]
+        direction TB
+        
+        subgraph DMZ [DMZ - VLAN 30 <br> 10.0.30.0/24]
+            direction LR
+            WAF[BunkerWeb WAF] --> Target[Web Application]
+        end
+        
+        subgraph LAN [LAN HQ - VLAN 20 <br> 10.0.20.0/24]
+            direction LR
+            AD[AD DS / DNS / DHCP]
+            Users[Workstations]
+        end
+        
+        subgraph MGMT [MGMT - VLAN 10 <br> 10.0.10.0/24]
+            Admins[Admin PC]
+        end
+    end
+
+    %% Филиал
+    subgraph SPB [Branch SPB]
+        direction TB
+        BranchLAN[Branch LAN - VLAN 40 <br> 10.0.40.0/24]
+    end
+
+    %% Связи
+    Internet <-->|WAN| FW
+    FW <-->|L3 Routing| DMZ
+    FW <-->|L3 Routing| LAN
+    FW <-->|L3 Routing| MGMT
+    FW <..>|Port Forwarding| BranchLAN
+    
+    %% Обозначение блокировки
+    LAN -.->|Access Denied| DMZ
+```
+
 ## Основные компоненты безопасности и конфигурации
 Репозиторий содержит практические реализации следующих защитных механизмов:
 
