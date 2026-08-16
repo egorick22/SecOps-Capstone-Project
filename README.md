@@ -23,44 +23,20 @@
   Сеть филиала. Маршрутизация и фильтрация трафика настроены локально.
 
 ### Логическая топология сети
-### Логическая топология сети
 
 ```mermaid
-flowchart LR
+flowchart TD
     %% Внешняя сеть
     Internet((Internet)) -->|WAN| FW{Core Firewall / Router<br>nftables}
 
-    %% Центральный офис
-    subgraph HQ [HQ Infrastructure]
-        direction TB
-        
-        subgraph MGMT [MGMT - VLAN 10 <br> 10.0.10.0/24]
-            Admins[Admin PC]
-        end
-        
-        subgraph LAN [LAN HQ - VLAN 20 <br> 10.0.20.0/24]
-            AD[AD DS / DNS / DHCP]
-            Users[Workstations]
-        end
-        
-        subgraph DMZ [DMZ - VLAN 30 <br> 10.0.30.0/24]
-            WAF[BunkerWeb WAF] --> Target[Web Application]
-        end
-    end
+    %% Маршрутизация от межсетевого экрана к сегментам
+    FW -->|VLAN 10 <br> MGMT| Admins[Admin PC]
+    FW -->|VLAN 20 <br> LAN HQ| LAN[HQ Workstations & Servers <br> AD DS / DNS / DHCP]
+    FW -->|VLAN 30 <br> DMZ| WAF[BunkerWeb WAF] --> Target[Web Application]
+    FW -.->|VLAN 40 <br> Branch SPB| BranchLAN[Branch Network]
 
-    %% Филиал
-    subgraph SPB [Branch SPB]
-        BranchLAN[Branch LAN - VLAN 40 <br> 10.0.40.0/24]
-    end
-
-    %% Связи
-    FW <-->|L3 Routing| MGMT
-    FW <-->|L3 Routing| LAN
-    FW <-->|L3 Routing| DMZ
-    FW -.->|Port Forwarding| BranchLAN
-    
-    %% Политики
-    LAN -.->|Access Denied| DMZ
+    %% Политики безопасности
+    LAN -.->|Access Denied| WAF
 ```
 
 ## Основные компоненты безопасности и конфигурации
