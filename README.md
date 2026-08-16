@@ -24,13 +24,15 @@
 
 ### Логическая топология сети
 
+### Логическая топология сети
+
 ```mermaid
 flowchart TD
     %% Внешняя сеть
     Internet((Internet))
     
     %% Ядро сети
-    FW{Core Firewall / Router\nnftables}
+    FW{Core Firewall / Router<br>nftables}
 
     %% Центральный офис
     subgraph HQ [HQ Infrastructure]
@@ -63,7 +65,7 @@ flowchart TD
     FW <-->|L3 Routing| DMZ
     FW <-->|L3 Routing| LAN
     FW <-->|L3 Routing| MGMT
-    FW <..>|Port Forwarding| BranchLAN
+    FW -.->|Port Forwarding| BranchLAN
     
     %% Обозначение блокировки
     LAN -.->|Access Denied| DMZ
