@@ -1,0 +1,120 @@
+---
+- name: Install and configure ClamAV antivirus
+  hosts: ws_msk_000019,ws_msk_000021,ws_msk_000023,ws_msk_000034,ws_msk_000046,ws_msk_000055,ws_msk_000126,ws_msk_000159,ws_msk_000189,ws_msk_000242,srv_fs
+  become: yes
+  gather_facts: yes
+
+  tasks:
+    # 1. Установка ClamAV
+    - name: Install ClamAV packages
+      apt:
+        name:
+          - clamav
+          - clamav-daemon
+          - clamav-freshclam
+        state: present
+        update_cache: yes
+
+    # 2. Остановка freshclam для ручного обновления
+    - name: Stop freshclam service
+      systemd:
+        name: clamav-freshclam
+        state: stopped
+      ignore_errors: yes
+
+    # 3. Обновление антивирусных баз
+    - name: Update virus definitions
+      command: freshclam
+      register: freshclam_result
+      changed_when: "'Downloading' in freshclam_result.stdout"
+
+    # 4. Запуск freshclam сервиса
+    - name: Start freshclam service
+      systemd:
+        name: clamav-freshclam
+        state: started
+        enabled: yes
+      ignore_errors: yes
+
+    # 5. Создание директории для логов
+    - name: Create clamav log directory
+      file:
+        path: /var/log/clamav
+        state: directory
+        owner: clamav
+        group: clamav
+        mode: '0755'
+
+    # 6. Создание скрипта полного сканирования
+    - name: Create clamav_full_scan.sh script
+      copy:
+        dest: /usr/local/bin/clamav_full_scan.sh
+        mode: '0755'
+        content: |
+          #!/bin/bash
+          # ClamAV полное сканирование файловой системы
+          LOGFILE="/var/log/clamav/clamav_scan_$(date +%Y%m%d_%H%M%S).log"
+          SCAN_DIR="/"
+          REPORT_DIR="/var/log/clamav"
+          
+          echo "=== ClamAV Full System Scan ===" | tee -a $LOGFILE
+          echo "Started at: $(date)" | tee -a $LOGFILE
+          echo "Scanning directory: $SCAN_DIR" | tee -a $LOGFILE
+          echo "=================================" | tee -a $LOGFILE
+          
+          # Полное сканирование
+          clamscan -r --infected --recursive --log=$LOGFILE $SCAN_DIR 2>/dev/null
+          
+          # Подсчёт результатов
+          INFECTED=$(grep -c "FOUND" $LOGFILE)
+          CLEAN=$(grep -c "OK" $LOGFILE)
+          
+          echo "=================================" | tee -a $LOGFILE
+          echo "Completed at: $(date)" | tee -a $LOGFILE
+          echo "Clean files: $CLEAN" | tee -a $LOGFILE
+          echo "Infected files: $INFECTED" | tee -a $LOGFILE
+          
+          # Отправка уведомления о заражённых файлах
+          if [ $INFECTED -gt 0 ]; then
+            echo "WARNING: Found $INFECTED infected files!" | tee -a $LOGFILE
+            grep "FOUND" $LOGFILE | tee -a $LOGFILE
+            exit 1
+          fi
+          
+          exit 0
+
+    # 7. Настройка cron для ежедневного сканирования в 2:00
+    - name: Add cron job for daily scan
+      cron:
+        name: "ClamAV full system scan"
+        minute: "0"
+        hour: "2"
+        job: "/usr/local/bin/clamav_full_scan.sh > /dev/null 2>&1"
+        state: present
+
+    # 8. Создание тестового каталога для EICAR
+    - name: Create test directory
+      file:
+        path: /tmp/clamav_test
+        state: directory
+        mode: '0755'
+
+    # 9. Проверка версии и статуса
+    - name: Check ClamAV version
+      command: clamscan --version
+      register: clamav_version
+      changed_when: false
+
+    - name: Display ClamAV version
+      debug:
+        msg: "{{ clamav_version.stdout }}"
+
+    # 10. Проверка актуальности баз
+    - name: Check freshclam status
+      command: freshclam --version
+      register: freshclam_version
+      changed_when: false
+
+    - name: Display freshclam version
+      debug:
+        msg: "{{ freshclam_version.stdout }}"
